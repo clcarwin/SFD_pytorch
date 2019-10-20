@@ -11,8 +11,7 @@ import argparse
 import numpy as np
 
 import net_s3fd
-from bbox import decode, nms
-from detect import detect
+from detect_faces import detect_faces
 
 parser = argparse.ArgumentParser(description='PyTorch face detect')
 parser.add_argument('--net','-n', default='s3fd', type=str)
@@ -33,19 +32,17 @@ if args.path=='CAMERA':
     cap = cv2.VideoCapture(0)
 with torch.no_grad():
     while(True):
-        if args.path=='CAMERA': ret, img = cap.read()
-        else: img = cv2.imread(args.path)
+        if args.path=='CAMERA': 
+            ret, img = cap.read()
+        else: 
+            img = cv2.imread(args.path)
 
         imgshow = np.copy(img)
         start_time = time.time()
-        bboxlist = detect(net, img, 3)
-        print(f"Running detect took {1000*(time.time() - start_time):.1f}ms")
-
-        keep = nms(bboxlist, 0.3)
-        bboxlist = bboxlist[keep,:]
+        bboxlist = detect_faces(net, img, 3)
+        print(f"Running detect_faces took {1000*(time.time() - start_time):.1f}ms.  Found {len(bboxlist)} faces.")
         for b in bboxlist:
             x1,y1,x2,y2,s = b
-            if s<0.5: continue
             cv2.rectangle(imgshow,(int(x1),int(y1)),(int(x2),int(y2)),(0,255,0),1)
         cv2.imshow('test',imgshow)
 

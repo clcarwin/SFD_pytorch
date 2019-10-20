@@ -30,28 +30,38 @@ def bboxloginv(dx,dy,dw,dh,axc,ayc,aww,ahh):
     x1,x2,y1,y2 = xc-ww/2,xc+ww/2,yc-hh/2,yc+hh/2
     return x1,y1,x2,y2
 
-def nms(dets, thresh):
-    if 0==len(dets): return []
-    x1,y1,x2,y2,scores = dets[:, 0],dets[:, 1],dets[:, 2],dets[:, 3],dets[:, 4]
+def nms(bboxlist:torch.Tensor, thresh:float) -> list:
+    """Given an Nx5 tensor of bounding boxes, and a threshold,
+    return a list of the indexes of bounding boxes to keep.
+    """
+    if len(bboxlist) == 0: 
+        return []
+    x1 = bboxlist[:,0]
+    y1 = bboxlist[:,1]
+    x2 = bboxlist[:,2]
+    y2 = bboxlist[:,3]
+    scores = bboxlist[:,4]
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+
+    # Go through the boxes in order of decreasing score...
     scores = np.asarray(scores)
     order = scores.argsort()
     order = np.asarray(list(order[::-1]))
-
     keep = []
     while len(order) > 0:
         i = order[0]
-        keep.append(i)
+        keep.append(i)  # Keep this one.
+
+        # For all the remaining (lower score) bounding boxes, figure out something about the overlap I think
         xx1,yy1 = np.maximum(x1[i], x1[order[1:]]),np.maximum(y1[i], y1[order[1:]])
         xx2,yy2 = np.minimum(x2[i], x2[order[1:]]),np.minimum(y2[i], y2[order[1:]])
-
         w,h = np.maximum(0.0, xx2 - xx1 + 1),np.maximum(0.0, yy2 - yy1 + 1)
-        ovr = w*h / (areas[i] + areas[order[1:]] - w*h)
-
+        ovr = w*h / (areas[i] + areas[order[1:]] - w*h)  # looks like the overlap
         inds = np.where(ovr <= thresh)[0]
-        order = order[inds + 1]
+        order = order[inds + 1]  # eliminate the ones that don't meet the threshhold
 
     return keep
+
 
 def encode(matched, priors, variances):
     """Encode the variances from the priorbox layers into the ground truth boxes

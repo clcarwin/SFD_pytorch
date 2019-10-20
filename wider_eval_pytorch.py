@@ -16,7 +16,7 @@ import zipfile
 from net_s3fd import s3fd
 from bbox import *
 
-from detect import detect
+from detect_faces import detect
 
 def flip_detect(net,img):
     img = cv2.flip(img, 1)
