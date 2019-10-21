@@ -11,7 +11,6 @@ import os,sys,cv2,random,datetime,time,math
 import argparse
 import numpy as np
 
-import net_s3fd
 from bbox import decode, nms
 
 def detect_faces(net:nn.Module, img:np.ndarray, minscale:int=3, ovr_threshhold:float=0.3,
@@ -36,7 +35,6 @@ def detect(net:nn.Module, img:np.ndarray, minscale:int=3) -> torch.Tensor:
     This will have LOTS of similar/overlapping regions.  Need to call bbox.nms to reconcile them.
     Setting minscale to 0 finds the smallest faces, but takes the longest.
     """
-    start_time = time.time()
     img = img - np.array([104,117,123])
     img = img.transpose(2, 0, 1)
     img = img.reshape((1,)+img.shape)
@@ -44,26 +42,25 @@ def detect(net:nn.Module, img:np.ndarray, minscale:int=3) -> torch.Tensor:
     img = Variable(torch.from_numpy(img).float()).cuda()
     BB,CC,HH,WW = img.size()
     olist = net(img)
-    print(f"Running CNN took {1000*(time.time() - start_time):.1f}ms")
 
     bboxlist = []
-    for i in range(len(olist)//2): 
-        olist[i*2] = F.softmax(olist[i*2], dim=1)
     for i in range(minscale, len(olist)//2):
-        #print(f"Going through olist {i} at {1000*(time.time() - start_time):.1f}ms.  bboxlist has {len(bboxlist)} entries")
-        ocls,oreg = olist[i*2].data,olist[i*2+1].data
+        ocls = F.softmax(olist[i*2], dim=1).data
+        oreg = olist[i*2+1].data
         FB,FC,FH,FW = ocls.size() # feature map size
         stride = 2**(i+2)    # 4,8,16,32,64,128
         anchor = stride*4
-        for Findex in range(FH*FW):  # Run a sliding window over the whole thing...
-            windex,hindex = Findex%FW,Findex//FW
-            score = ocls[0,1,hindex,windex]
-            if score<0.05: 
-                continue
+        # this workload is small enough that it's faster on CPU than GPU (~55ms vs ~65ms)
+        # but most of that time (40ms) is spend moving the data from GPU to CPU. 
+        all_scores = ocls[0,1,:,:].cpu()
+        oreg = oreg.cpu()
+        # instead of running a sliding window, first find the places where score is big enough to bother
+        bigenough = torch.nonzero(all_scores > 0.05)
+        for hindex, windex in bigenough:
+            score = all_scores[hindex,windex]
             loc = oreg[0,:,hindex,windex].contiguous().view(1,4)
             axc,ayc = stride/2+windex*stride,stride/2+hindex*stride
-            priors = torch.Tensor([[axc/1.0,ayc/1.0,stride*4/1.0,stride*4/1.0]]).cuda()
-            priors = torch.Tensor([[axc/1.0,ayc/1.0,stride*4/1.0,stride*4/1.0]]).cuda()
+            priors = torch.Tensor([[axc/1.0,ayc/1.0,stride*4/1.0,stride*4/1.0]])
             variances = [0.1,0.2]
             box = decode(loc,priors,variances)
             x1,y1,x2,y2 = box[0]*1.0
