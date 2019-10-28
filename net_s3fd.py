@@ -18,7 +18,7 @@ class L2Norm(nn.Module):
         x = x / norm * self.weight.view(1,-1,1,1)
         return x
 
-class s3fd(nn.Module):
+class S3fd_Model(nn.Module):
     def __init__(self):
         super(s3fd, self).__init__()
         self.conv1_1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
@@ -120,3 +120,5 @@ class s3fd(nn.Module):
         cls1  = torch.cat([bmax,chunk[3]],dim=1)
 
         return [cls1,reg1,cls2,reg2,cls3,reg3,cls4,reg4,cls5,reg5,cls6,reg6]
+
+s3fd = S3fd_Model
